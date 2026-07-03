@@ -1,0 +1,45 @@
+apiVersion: batch/v1
+kind: Job
+metadata:
+  name: ollama-pull-llama32
+  namespace: ollama
+  annotations:
+    argocd.argoproj.io/sync-wave: "-1"
+spec:
+  backoffLimit: 3
+  template:
+    spec:
+      restartPolicy: Never
+
+      containers:
+      - name: pull-model
+        image: ollama/ollama:latest
+
+        command:
+        - sh
+        - -c
+        - |
+          ollama serve &
+          PID=$!
+
+          echo "Aguardando servidor..."
+
+          until curl -s http://localhost:11434/api/tags >/dev/null
+          do
+            sleep 2
+          done
+
+          if ! ollama list | grep -q "llama3.2"; then
+              ollama pull llama3.2
+          fi          
+
+          kill $PID
+
+        volumeMounts:
+        - name: models
+          mountPath: /root/.ollama
+
+      volumes:
+      - name: models
+        persistentVolumeClaim:
+          claimName: ollama-data
